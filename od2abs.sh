@@ -240,7 +240,14 @@ rename_book_dir() {
       ;;
   esac
 
-  [[ ! -e $target_dir ]] || {
+  case $current_abs in
+    "$target_dir"/*)
+      printf 'Rename skipped: target would be an ancestor of source: %s -> %s\n' "$current_abs" "$target_dir" >&2
+      return 0
+      ;;
+  esac
+
+  [[ ! -e $target_dir && ! -L $target_dir ]] || {
     printf 'Rename skipped: target already exists: %s\n' "$target_dir" >&2
     return 0
   }
@@ -412,4 +419,4 @@ while IFS= read -r -d '' candidate_dir; do
   elif [[ $rename_dirs == true ]] && has_audiobookshelf_metadata "$candidate_dir"; then
     rename_book_dir "$candidate_dir"
   fi
-done < <(find "$root_dir" -type d -print0)
+done < <(find "$root_dir" -depth -type d -print0)

@@ -2,14 +2,11 @@
 set -euo pipefail
 
 usage() {
-  printf 'Usage: %s [-r] [-n] AUDIOBOOK_DIR\n' "${0##*/}" >&2
+  printf 'Usage: %s [-r] AUDIOBOOK_DIR\n' "${0##*/}" >&2
   printf '\n' >&2
   printf 'Without -r, AUDIOBOOK_DIR must be a single Overdrive audiobook directory.\n' >&2
   printf 'With -r, AUDIOBOOK_DIR is searched recursively for Overdrive audiobook directories.\n' >&2
-  printf 'With -n, directories are renamed from Audiobookshelf metadata.\n' >&2
-  printf '  With author and series: AUTHOR/SERIES/TITLE\n' >&2
-  printf '  With author only:       AUTHOR/TITLE\n' >&2
-  printf '  Without author:         TITLE\n' >&2
+  printf 'The -n rename option is currently disabled for review.\n' >&2
   printf '\n' >&2
   printf 'Expected Overdrive source: AUDIOBOOK_DIR/metadata/metadata.json\n' >&2
   printf 'Audiobookshelf output:      AUDIOBOOK_DIR/metadata.json\n' >&2
@@ -370,7 +367,7 @@ while getopts ':rn' opt; do
       recursive=true
       ;;
     n)
-      rename_dirs=true
+      die 'Renaming code is currently disabled for review.'
       ;;
     *)
       usage

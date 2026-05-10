@@ -2,10 +2,14 @@
 set -euo pipefail
 
 usage() {
-  printf 'Usage: %s [-r] AUDIOBOOK_DIR\n' "${0##*/}" >&2
+  printf 'Usage: %s [-r] [-n] AUDIOBOOK_DIR\n' "${0##*/}" >&2
   printf '\n' >&2
   printf 'Without -r, AUDIOBOOK_DIR must be a single Overdrive audiobook directory.\n' >&2
   printf 'With -r, AUDIOBOOK_DIR is searched recursively for Overdrive audiobook directories.\n' >&2
+  printf 'With -n, directories are renamed from Audiobookshelf metadata.\n' >&2
+  printf '  With author and series: AUTHOR/SERIES/TITLE\n' >&2
+  printf '  With author only:       AUTHOR/TITLE\n' >&2
+  printf '  Without author:         TITLE\n' >&2
   printf '\n' >&2
   printf 'Expected Overdrive source: AUDIOBOOK_DIR/metadata/metadata.json\n' >&2
   printf 'Audiobookshelf output:      AUDIOBOOK_DIR/metadata.json\n' >&2
@@ -72,6 +76,19 @@ is_candidate_dir() {
   is_overdrive_metadata "$input_file" || return 1
 }
 
+has_audiobookshelf_metadata() {
+  local book_dir=$1
+  local metadata_file=$book_dir/metadata.json
+
+  [[ -r $metadata_file ]] || return 1
+  has_audiobook_media "$book_dir" || return 1
+
+  jq -e '
+    type == "object"
+    and (.title? | type == "string")
+  ' "$metadata_file" >/dev/null 2>&1
+}
+
 validate_book_dir() {
   local book_dir=$1
   local metadata_dir=$book_dir/metadata
@@ -86,6 +103,153 @@ validate_book_dir() {
   [[ ! -e $overdrive_file ]] || die "Refusing to overwrite existing file: $overdrive_file"
   [[ -w $book_dir ]] || die "Audiobook directory is not writable: $book_dir"
   [[ -w $metadata_dir ]] || die "Overdrive metadata directory is not writable: $metadata_dir"
+}
+
+sanitize_component() {
+  local value=$1
+
+  value=${value//$'\r'/ }
+  value=${value//$'\n'/ }
+  value=${value//$'\t'/ }
+
+  printf '%s' "$value" \
+    | sed \
+        -e 's/[[:cntrl:]]//g' \
+        -e 's#[/\\:*?"<>|]#-#g' \
+        -e 's/[[:space:]][[:space:]]*/ /g' \
+        -e 's/^ *//' \
+        -e 's/ *$//' \
+        -e 's/^\.*//' \
+        -e 's/\.*$//'
+}
+
+rename_book_dir() {
+  local book_dir=$1
+  local metadata_file=$book_dir/metadata.json
+  local raw_title
+  local raw_author
+  local raw_series
+  local title_dir
+  local author_dir
+  local series_dir
+  local current_abs
+  local current_base
+  local current_parent
+  local current_parent_base
+  local current_grandparent
+  local current_grandparent_base
+  local target_dir
+  local target_parent
+
+  [[ -r $metadata_file ]] || {
+    printf 'Rename skipped: Audiobookshelf metadata is not readable: %s\n' "$metadata_file" >&2
+    return 0
+  }
+
+  raw_title=$(jq -er '.title | select(type == "string" and length > 0)' "$metadata_file" 2>/dev/null) || {
+    printf 'Rename skipped: title is missing from: %s\n' "$metadata_file" >&2
+    return 0
+  }
+
+  raw_author=$(jq -r '
+    ((.authors // [])
+      | map(select(type == "string" and length > 0))
+      | .[0]) // empty
+  ' "$metadata_file" 2>/dev/null) || {
+    printf 'Rename skipped: unable to read author from: %s\n' "$metadata_file" >&2
+    return 0
+  }
+
+  raw_series=$(jq -r '
+    ((.series // [])
+      | map(select(type == "string" and length > 0))
+      | .[0]) // empty
+  ' "$metadata_file" 2>/dev/null) || {
+    printf 'Rename skipped: unable to read series from: %s\n' "$metadata_file" >&2
+    return 0
+  }
+
+  raw_series=$(printf '%s' "$raw_series" | sed 's/[[:space:]]#[0-9][0-9]*$//')
+
+  title_dir=$(sanitize_component "$raw_title")
+
+  [[ -n $title_dir ]] || {
+    printf 'Rename skipped: sanitized title is empty for: %s\n' "$metadata_file" >&2
+    return 0
+  }
+
+  current_abs=$(cd -P -- "$book_dir" && pwd)
+  current_base=${current_abs##*/}
+  current_parent=${current_abs%/*}
+  current_parent_base=${current_parent##*/}
+  current_grandparent=${current_parent%/*}
+  current_grandparent_base=${current_grandparent##*/}
+
+  if [[ -n $raw_author ]]; then
+    author_dir=$(sanitize_component "$raw_author")
+    series_dir=$(sanitize_component "$raw_series")
+
+    [[ -n $author_dir ]] || {
+      printf 'Rename skipped: sanitized author is empty for: %s\n' "$metadata_file" >&2
+      return 0
+    }
+
+    if [[ -n $series_dir ]]; then
+      if [[ $current_grandparent_base == "$author_dir" && $current_parent_base == "$series_dir" && $current_base == "$title_dir" ]]; then
+        printf 'Rename skipped: already named: %s\n' "$current_abs"
+        return 0
+      fi
+
+      if [[ $current_grandparent_base == "$author_dir" && $current_parent_base == "$series_dir" ]]; then
+        target_dir=$current_parent/$title_dir
+      elif [[ $current_parent_base == "$author_dir" ]]; then
+        target_dir=$current_parent/$series_dir/$title_dir
+      else
+        target_dir=$current_parent/$author_dir/$series_dir/$title_dir
+      fi
+    else
+      if [[ $current_parent_base == "$author_dir" && $current_base == "$title_dir" ]]; then
+        printf 'Rename skipped: already named: %s\n' "$current_abs"
+        return 0
+      fi
+
+      if [[ $current_parent_base == "$author_dir" ]]; then
+        target_dir=$current_parent/$title_dir
+      else
+        target_dir=$current_parent/$author_dir/$title_dir
+      fi
+    fi
+  else
+    if [[ $current_base == "$title_dir" ]]; then
+      printf 'Rename skipped: already named: %s\n' "$current_abs"
+      return 0
+    fi
+
+    target_dir=$current_parent/$title_dir
+  fi
+
+  [[ $target_dir != "$current_abs" ]] || {
+    printf 'Rename skipped: already named: %s\n' "$current_abs"
+    return 0
+  }
+
+  case $target_dir in
+    "$current_abs"/*)
+      printf 'Rename skipped: target would be inside source: %s -> %s\n' "$current_abs" "$target_dir" >&2
+      return 0
+      ;;
+  esac
+
+  [[ ! -e $target_dir ]] || {
+    printf 'Rename skipped: target already exists: %s\n' "$target_dir" >&2
+    return 0
+  }
+
+  target_parent=${target_dir%/*}
+  mkdir -p -- "$target_parent"
+  mv -- "$current_abs" "$target_dir"
+
+  printf 'Renamed: %s -> %s\n' "$current_abs" "$target_dir"
 }
 
 convert_book_dir() {
@@ -191,11 +355,15 @@ convert_book_dir() {
 }
 
 recursive=false
+rename_dirs=false
 
-while getopts ':r' opt; do
+while getopts ':rn' opt; do
   case $opt in
     r)
       recursive=true
+      ;;
+    n)
+      rename_dirs=true
       ;;
     *)
       usage
@@ -214,22 +382,34 @@ fi
 root_dir=$1
 
 command -v jq >/dev/null 2>&1 || die 'jq was not found in PATH'
+command -v sed >/dev/null 2>&1 || die 'sed was not found in PATH'
 [[ -d $root_dir ]] || die "Directory does not exist: $root_dir"
 
 if [[ $recursive == false ]]; then
-  validate_book_dir "$root_dir"
-  convert_book_dir "$root_dir"
+  if is_candidate_dir "$root_dir"; then
+    convert_book_dir "$root_dir"
+  elif [[ $rename_dirs == true ]] && has_audiobookshelf_metadata "$root_dir"; then
+    :
+  else
+    validate_book_dir "$root_dir"
+    convert_book_dir "$root_dir"
+  fi
+
+  if [[ $rename_dirs == true ]]; then
+    rename_book_dir "$root_dir"
+  fi
+
   exit 0
 fi
-
-converted_count=0
 
 while IFS= read -r -d '' candidate_dir; do
   if is_candidate_dir "$candidate_dir"; then
     if convert_book_dir "$candidate_dir"; then
-      converted_count=$((converted_count + 1))
+      if [[ $rename_dirs == true ]]; then
+        rename_book_dir "$candidate_dir"
+      fi
     fi
+  elif [[ $rename_dirs == true ]] && has_audiobookshelf_metadata "$candidate_dir"; then
+    rename_book_dir "$candidate_dir"
   fi
 done < <(find "$root_dir" -type d -print0)
-
-printf 'Converted directories: %d\n' "$converted_count"

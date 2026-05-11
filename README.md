@@ -9,7 +9,7 @@ I later added functionality to rename the directory structure based on first-aut
 * Original -> Author/BookTitle
 * Original -> Author/Series/BookTitle
 
-### Example
+### Example #1
 
 ```
 # tree -d -L 2 "/volume2/vault/AudioBooks/Fiction/Frank Herbert"
@@ -23,8 +23,28 @@ I later added functionality to rename the directory structure based on first-aut
     └── Heretics of Dune
 ```
 
+### Example #2
+
+```
+# tree -d -L 2 "/volume2/vault/AudioBooks/Fiction/J. K. Rowling"
+/volume2/vault/AudioBooks/Fiction/J. K. Rowling
+├── Harry Potter
+│   ├── Harry Potter and the Chamber of Secrets
+│   ├── Harry Potter and the Deathly Hallows
+│   ├── Harry Potter and the Goblet of Fire
+│   ├── Harry Potter and the Half-Blood Prince
+│   ├── Harry Potter and the Order of the Phoenix
+│   ├── Harry Potter and the Philosopher's Stone
+│   └── Harry Potter and the Prisoner of Azkaban
+└── Harry Potter Wizarding World
+    ├── Fantastic Beasts and Where to Find Them
+    ├── Quidditch Through the Ages
+    ├── The Hogwarts Library Collection
+    └── The Tales of Beedle the Bard
+```
+
 I'll add more documentation when I get back to documenting the code internally. For now, this POC works against freshly downloaded Overdrive books and makes importing into Audiobookshelf a lot cleaner and accurate. Ultimately this will be converted into a python script to possibly add to the LibbyRip repository.
 
-To work with JSON, this script requires the `jq` tool. Do you have `jq`? And It'd be a lot cooler if you did...
+To work with JSON this script requires the `jq` tool. Do you have `jq`? *It'd be a lot cooler if you did...*
 
 ### ✌️

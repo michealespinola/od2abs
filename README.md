@@ -36,10 +36,9 @@ I later added functionality to rename the directory structure based on first-aut
 │   ├── Harry Potter and the Order of the Phoenix
 │   ├── Harry Potter and the Philosopher's Stone
 │   └── Harry Potter and the Prisoner of Azkaban
-└── Harry Potter Wizarding World
+└── Harry Potter - Hogwarts Library
     ├── Fantastic Beasts and Where to Find Them
     ├── Quidditch Through the Ages
-    ├── The Hogwarts Library Collection
     └── The Tales of Beedle the Bard
 ```
 

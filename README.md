@@ -1,8 +1,6 @@
 # od2abs
 OverDrive 2 AudioBookShelf
 
-* PLEASE NOTE: When using the `-r` recursive search option, this should be run against top-level library directories where the first subdirectory should be the author name. You can technically run it higher in the directory heirarchy, but you shouldn't unless you want to risk odd renaming behavior that might cause weird directory nesting - particularly when renaming series directories. The nesting is easy to recover from (simply move them back to were they should be), but its better to avoid making the mistake in the first place.
-
 I created this script to work specifically with the output from [LibbyRip](https://github.com/PsychedelicPalimpsest/LibbyRip)/[LibreGRAB](https://greasyfork.org/en/scripts/498782-libregrab) TamperMonkey script. It converts the OverDrive format metadata.json into Audiobookshelf's expected JSON format and stores it side-car'd with the audio files. This makes importing books into Audiobookshelf much easier, and includes datafields that are frequently missed or inaccurate, such as the full authors list as well as the full narrators list.
 
 I later added functionality to rename the directory structure based on first-author and book title. If you have added book series info to Audiobookshelf and have it configured to "Store metadata with item" to save the metadata to a metadata.json file in the audiobook's directory, the script will read the first-series name and use that to further organize the directory structure. It will rename accordingly to which fields are populated:
@@ -49,3 +47,5 @@ I'll add more documentation when I get back to documenting the code internally. 
 To work with JSON this script requires the `jq` tool. Do you have `jq`? *It'd be a lot cooler if you did...*
 
 ### ✌️
+
+* **PLEASE NOTE:** When using the `-r` recursive search option, this should be run against top-level library directories where the first subdirectory should be the author name. You can technically run it higher in the directory heirarchy, but you shouldn't unless you want to risk odd renaming behavior that might cause weird directory nesting - particularly when renaming series directories. The nesting is easy to recover from (simply move them back to were they should be), but its better to avoid making the mistake in the first place.
